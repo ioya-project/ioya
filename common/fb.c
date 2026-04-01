@@ -1,3 +1,4 @@
+#include <config.h>
 #include <fb.h>
 #include <serial.h>
 #include <stdbool.h>
@@ -25,13 +26,7 @@ static struct {
 
     uint32_t max_col;
     uint32_t max_row;
-} fb = {
-    .fb = (uint32_t *)0x9C000000,
-
-    .width = 1080,
-    .height = 2400,
-    .stride = 4,
-};
+} fb = {0};
 
 void fb_clear()
 {
@@ -39,25 +34,6 @@ void fb_clear()
 }
 
 static void fb_putchar(char c);
-
-void fb_init()
-{
-    fb.size = fb.width * fb.height * fb.stride;
-
-    fb.max_col = fb.width / FONT_W_SCALE;
-    fb.max_row = fb.height / FONT_H_SCALE;
-
-    fb.col = (uint32_t *)(fb.fb + fb.size);
-    fb.row = (uint32_t *)(fb.fb + 4 + fb.size);
-
-#ifndef RALLY
-
-    *fb.col = 0;
-    *fb.row = 0;
-
-    fb_clear();
-#endif
-}
 
 static void fb_set_pixel(uint32_t x, uint32_t y, uint32_t color)
 {
@@ -126,11 +102,30 @@ void fb_write(const char *buf, size_t len)
 
 static struct serial_funcs fb_funcs = {
     .name = "Framebuffer",
-    .init = fb_init,
     .write = fb_write,
 };
 
 void fb_setup()
 {
+    fb.fb = (uint32_t *)config.fb_base;
+    fb.width = config.fb_width;
+    fb.height = config.fb_height;
+    fb.stride = config.fb_stride;
+
+    fb.size = fb.width * fb.height * fb.stride;
+
+    fb.max_col = fb.width / FONT_W_SCALE;
+    fb.max_row = fb.height / FONT_H_SCALE;
+
+    fb.col = (uint32_t *)(fb.fb + fb.size);
+    fb.row = (uint32_t *)(fb.fb + 4 + fb.size);
+
+#ifndef RALLY
+    *fb.col = 0;
+    *fb.row = 0;
+
+    fb_clear();
+#endif
+
     serial_register(&fb_funcs);
 }

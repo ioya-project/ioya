@@ -1,3 +1,4 @@
+#include "config.h"
 #include <assert.h>
 #include <block_dev.h>
 #include <cache.h>
@@ -163,15 +164,6 @@ void main(uintptr_t base, void *payload, size_t payload_size)
     apply_relocations(base);
     heap_init();
     serial_setup();
-
-    printf(".___________ _____.___.  _____\n");
-    printf("|   \\_____  \\\\__  |   | /  _  \\\n");
-    printf("|   |/   |   \\/   |   |/  /_\\  \\\n");
-    printf("|   /    |    \\____   /    |    \\\n");
-    printf("|___\\_______  / ______\\____|__  /\n");
-    printf("            \\/\\/              \\/\n");
-    printf("IOYA %s\n", IOYA_VERSION);
-    printf("Built with Clang %s\n", __clang_version__);
     cache_enable();
 
     block_dev_setup();
@@ -194,8 +186,19 @@ void main(uintptr_t base, void *payload, size_t payload_size)
         panic("Failed to read config file: %d\n", ret);
     }
 
-    struct boot_config config = config_parser_parse(config_text, config_len);
-    config_parser_validate(&config);
+    config_parser_parse(config_text, config_len);
+    config_parser_validate();
+
+    fb_setup();
+
+    printf(".___________ _____.___.  _____\n");
+    printf("|   \\_____  \\\\__  |   | /  _  \\\n");
+    printf("|   |/   |   \\/   |   |/  /_\\  \\\n");
+    printf("|   /    |    \\____   /    |    \\\n");
+    printf("|___\\_______  / ______\\____|__  /\n");
+    printf("            \\/\\/              \\/\n");
+    printf("IOYA %s\n", IOYA_VERSION);
+    printf("Built with Clang %s\n", __clang_version__);
 
     uint32_t kernel_len;
     ret = read_file(&fs, config.kernel, NULL, &kernel_len);
@@ -284,22 +287,23 @@ void main(uintptr_t base, void *payload, size_t payload_size)
     args->mem_size = config.memory_size;
     args->kernel_top = phys_ptr;
 
-    args->video_args.base_addr = 0x9C000000 | 1;
+    args->video_args.base_addr = config.fb_base | 1;
     args->video_args.display = false;
-    args->video_args.row_bytes = 1080 * sizeof(uint32_t);
-    args->video_args.width = 1080;
-    args->video_args.height = 2400;
+    args->video_args.row_bytes = config.fb_width * sizeof(uint32_t);
+    args->video_args.width = config.fb_width;
+    args->video_args.height = config.fb_height;
     args->video_args.depth.depth = sizeof(uint32_t) * 8;
-    args->video_args.depth.rotate = 1;
-    args->video_args.depth.scale = 16;
+    args->video_args.depth.rotate = 0;
+    args->video_args.depth.scale = 1;
+    args->video_args.depth.boot_rotate = 0;
 
     printf("XNU Base: 0x%08llx, End: 0x%08llx\n", info.range.base, info.range.end);
     printf("XNU Loaded At 0x%p\n", info.kernel);
     printf("XNU Build version: 0x%x\n", build_version);
 
     printf("Jumping to RALLY payload\n");
-    ((void (*)(uint64_t, uint64_t, uint64_t))rally_entry)(
-        info.range.base, config.load_address, (uint64_t)rally_entry - config.load_address);
+    ((void (*)(uint64_t, uint64_t, uint64_t, struct boot_config))rally_entry)(
+        info.range.base, config.load_address, (uint64_t)rally_entry - config.load_address, config);
 
     cache_disable();
     printf("Jumping to XNU Entry\n");

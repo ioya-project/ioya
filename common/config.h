@@ -12,6 +12,13 @@ struct boot_config {
     char cmdline[608];
     uint64_t load_address;
     uint64_t memory_size;
+
+    uint64_t fb_base;
+    uint32_t fb_width;
+    uint32_t fb_height;
+    uint32_t fb_stride;
 };
+
+extern struct boot_config config;
 
 #endif

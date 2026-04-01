@@ -1,3 +1,5 @@
+#include "fb.h"
+#include <config.h>
 #include <hook.h>
 #include <kernel_hooks.h>
 #include <kernel_patches.h>
@@ -20,9 +22,15 @@ extern void *LowExceptionVectorBase;
 
 extern struct mach_o_header mh_execute_header;
 
-__attribute__((section(".entry"))) void _start(uint64_t virt, uint64_t phys, uint64_t offset)
+struct boot_config config;
+
+__attribute__((section(".entry"))) void _start(uint64_t virt, uint64_t phys, uint64_t offset,
+                                               struct boot_config cfg)
 {
     apply_relocations(phys + offset);
+    config = cfg;
+
+    fb_setup();
     serial_setup();
 
     virt_base = virt;

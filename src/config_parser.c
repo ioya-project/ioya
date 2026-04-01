@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 
-struct boot_config config_parser_parse(char *buf, uint32_t len)
-{
-    struct boot_config config = {0};
+struct boot_config config;
 
+void config_parser_parse(char *buf, uint32_t len)
+{
     char *p = buf;
     char *end = buf + len;
 
@@ -48,31 +48,53 @@ struct boot_config config_parser_parse(char *buf, uint32_t len)
             config.load_address = strtol(value, 0);
         } else if (strcmp(key, "memory_size") == 0) {
             config.memory_size = strtol(value, 0);
+        } else if (strcmp(key, "fb_base") == 0) {
+            config.fb_base = strtol(value, 0);
+        } else if (strcmp(key, "fb_width") == 0) {
+            config.fb_width = strtol(value, 0);
+        } else if (strcmp(key, "fb_height") == 0) {
+            config.fb_height = strtol(value, 0);
+        } else if (strcmp(key, "fb_stride") == 0) {
+            config.fb_stride = strtol(value, 0);
         }
     }
-
-    return config;
 }
 
-void config_parser_validate(struct boot_config *config)
+void config_parser_validate()
 {
-    if (strlen(config->kernel) == 0) {
+    if (strlen(config.kernel) == 0) {
         panic("No kernel path is provided in config");
     }
 
-    if (strlen(config->devicetree) == 0) {
+    if (strlen(config.devicetree) == 0) {
         panic("No devicetree path is provided in config");
     }
 
-    if (strlen(config->ramdisk) == 0) {
+    if (strlen(config.ramdisk) == 0) {
         panic("No ramdisk path is provided in config");
     }
 
-    if (config->load_address == 0) {
+    if (config.load_address == 0) {
         panic("No load address is provided in config");
     }
 
-    if (config->memory_size == 0) {
+    if (config.memory_size == 0) {
         panic("No memory size is provided in config");
+    }
+
+    if (config.fb_base == 0) {
+        panic("No framebuffer base is provided in config");
+    }
+
+    if (config.fb_width == 0) {
+        panic("No framebuffer width is provided in config");
+    }
+
+    if (config.fb_height == 0) {
+        panic("No framebuffer height is provided in config");
+    }
+
+    if (config.fb_stride == 0) {
+        panic("No framebuffer stride is provided in config");
     }
 }

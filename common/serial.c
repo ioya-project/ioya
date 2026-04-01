@@ -12,14 +12,16 @@ void serial_register(struct serial_funcs *func)
 
 void serial_setup()
 {
-    fb_setup();
 #ifdef QEMU
     pl011_setup();
 #endif
 
     struct serial_funcs *func = funcs;
     while (func != NULL) {
-        func->init();
+        if (func->init) {
+            func->init();
+        }
+
         func = func->next;
     }
 }
