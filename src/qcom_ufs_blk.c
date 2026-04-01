@@ -8,6 +8,8 @@
 
 #define UFS_HC_BASE (0x1D84000)
 
+#define UFS_HC_CONTROLLER_STATUS (UFS_HC_BASE + 0x30)
+
 #define UFS_HC_UTP_TRANSFER_REQ_LIST_BASE_L (UFS_HC_BASE + 0x50)
 #define UFS_HC_UTP_TRANSFER_REQ_LIST_BASE_H (UFS_HC_BASE + 0x54)
 #define UFS_HC_UTP_TRANSFER_REQ_DOOR_BELL (UFS_HC_BASE + 0x58)
@@ -17,6 +19,16 @@
 #define UFS_HC_UTP_TASK_REQ_LIST_BASE_H (UFS_HC_BASE + 0x74)
 #define UFS_HC_UTP_TASK_REQ_DOOR_BELL (UFS_HC_BASE + 0x78)
 #define UFS_HC_UTP_TASK_REQ_LIST_RUN_STOP (UFS_HC_BASE + 0x80)
+
+#define UTP_TRANSFER_REQ_LIST_READY 0x2
+#define UTP_TASK_REQ_LIST_READY 0x3
+#define UIC_COMMAND_READY 0x4
+
+#define UFSHCD_STATUS_READY                                                                        \
+    (UTP_TRANSFER_REQ_LIST_READY | UTP_TASK_REQ_LIST_READY | UIC_COMMAND_READY)
+
+#define UPIU_CMD_FLAGS_WRITE 0x20
+#define UPIU_CMD_FLAGS_READ 0x40
 
 #define OCS_SUCCESS 0x0
 #define OCS_INVALID_COMMAND_STATUS 0xF
@@ -88,6 +100,7 @@ static int qcom_ufs_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t l
     memset(upiu, 0, ALIGNED_UPIU_SIZE);
 
     upiu[0] = 1; // COMMAND
+    upiu[1] = (to_host ? UPIU_CMD_FLAGS_READ : UPIU_CMD_FLAGS_WRITE);
 
     upiu[12] = (len >> 24) & 0xFF;
     upiu[13] = (len >> 16) & 0xFF;
@@ -97,7 +110,9 @@ static int qcom_ufs_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t l
     memcpy(&upiu[16], cdb, cdb_len);
 
     utrd.header.dword_0 = (to_host ? UTP_DEVICE_TO_HOST : UTP_HOST_TO_DEVICE) | UTP_CMD_TYPE_UFS;
+    utrd.header.dword_1 = 0;
     utrd.header.dword_2 = OCS_INVALID_COMMAND_STATUS;
+    utrd.header.dword_3 = 0;
 
     utrd.command_desc_base_addr_lo = (uint32_t)((uintptr_t)&ucd);
     utrd.command_desc_base_addr_hi = (uint32_t)((uintptr_t)(&ucd) >> 32);
@@ -152,11 +167,15 @@ void qcom_ufs_blk_init()
     write32(UFS_HC_UTP_TASK_REQ_LIST_BASE_L, 0);
     write32(UFS_HC_UTP_TASK_REQ_LIST_BASE_H, 0);
 
-    write32(UFS_HC_UTP_TRANSFER_REQ_LIST_RUN_STOP, 1);
-    write32(UFS_HC_UTP_TASK_REQ_LIST_RUN_STOP, 1);
+    if ((read32(UFS_HC_CONTROLLER_STATUS) & UFSHCD_STATUS_READY) == UFSHCD_STATUS_READY) {
+        write32(UFS_HC_UTP_TRANSFER_REQ_LIST_RUN_STOP, 1);
+        write32(UFS_HC_UTP_TASK_REQ_LIST_RUN_STOP, 1);
+    } else {
+        panic("UFS controller isn't ready");
+    }
 
     uint8_t cdb[10] = {0};
-    uint8_t buf[8];
+    uint8_t buf[8] = {0};
 
     cdb[0] = 0x25; // READ CAPACITY(10)
     if (qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, sizeof(buf), true)) {

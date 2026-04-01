@@ -109,7 +109,7 @@ static struct fat_fs find_ioya_partition(bool *found)
     uint32_t count;
     int ret = parse_gpt(dev, &header, entries, &count);
     if (ret < 0) {
-        panic("Failed to parse gpt");
+        panic("Failed to parse gpt: %d", ret);
     }
 
     uint32_t it = 0;
