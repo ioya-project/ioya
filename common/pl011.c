@@ -4,8 +4,7 @@
 #include <utils.h>
 
 #ifdef RALLY
-#include <arm/machine_routines.h>
-#include <vm/memory_types.h>
+#include <symbols.h>
 #endif
 
 #define PL011_BASE (0x9000000)
@@ -32,11 +31,6 @@
 
 #define PL011_FR_RXFE (1 << 4)
 #define PL011_FR_TXFF (1 << 5)
-
-#ifdef RALLY
-static vm_offset_t (*_io_map)(vm_map_offset_t phys_addr, vm_size_t size, unsigned int flags,
-                              vm_prot_t prot, bool unmappable) = (void *)0xfffffff007e87630;
-#endif
 
 void pl011_uart_init(uintptr_t base)
 {
@@ -89,7 +83,7 @@ static void pl011_write(const char *buf, size_t len)
         if (!vm_inited)
             return;
 
-        pl011_base = _io_map(PL011_BASE, 0x4000, VM_WIMG_IO, VM_PROT_DEFAULT, false);
+        pl011_base = symbols.vm.io_map(PL011_BASE, 0x4000, VM_WIMG_IO, VM_PROT_DEFAULT, false);
     }
 #endif
 

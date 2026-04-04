@@ -244,8 +244,6 @@ void main(uintptr_t base, void *payload, size_t payload_size)
     memset(args, 0, sizeof(struct xnu_boot_arguments));
     phys_ptr += 0x4000;
 
-    strcpy(args->cmdline, config.cmdline);
-
     uint32_t devicetree_size;
     ret = read_file(&fs, config.devicetree, NULL, &devicetree_size);
     if (ret < 0) {
@@ -286,6 +284,7 @@ void main(uintptr_t base, void *payload, size_t payload_size)
     args->phys_base = config.load_address;
     args->mem_size = config.memory_size;
     args->kernel_top = phys_ptr;
+    strcpy(args->cmdline, config.cmdline);
 
     args->video_args.base_addr = config.fb_base | 1;
     args->video_args.display = false;

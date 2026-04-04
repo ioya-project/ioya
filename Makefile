@@ -7,7 +7,7 @@ OBJCOPY = llvm-objcopy
 
 TEXT_BASE ?= 0x80000000
 
-IOYA_VERSION = 1.0.0-$(shell git log --pretty=format:"%h")
+IOYA_VERSION = 1.0.0-$(shell git log --pretty=format:"%h" | head -1)
 
 CFLAGS = -O1 -Wall -ffreestanding -nostdinc -fpie -fpic -mstrict-align -fno-stack-protector -mgeneral-regs-only -Isrc -DTEXT_BASE=$(TEXT_BASE) -DIOYA_VERSION='"$(IOYA_VERSION)"' -g
 LDFLAGS = -T ioya.ld -Ttext=$(TEXT_BASE) -nostdlib -static --format=default -pie

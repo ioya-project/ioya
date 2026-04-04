@@ -65,7 +65,10 @@ restore_eret_sp0:
 restore_chain_sp0:
     RESTORE_REGS
 
-    ldr x16, =el1_sp0_synchronous_vector_long
+    adrp x16, symbols
+    add  x16, x16, :lo12:symbols
+    // It's bad that the offset is hardcoded here but I don't know easy way to fix this
+    ldr  x16, [x16, #136] // symbols.exception.el1_sp0_synchronous_vector_long
     br x16
 
 _exception_handler_sp1:
@@ -82,8 +85,11 @@ restore_eret_sp1:
 restore_chain_sp1:
     RESTORE_REGS
 
-    ldr x16, =el1_sp1_synchronous_vector_long
-    br x16
+    adrp x16, symbols
+    add  x16, x16, :lo12:symbols
+    // It's bad that the offset is hardcoded here but I don't know easy way to fix this
+    ldr  x16, [x16, #144] // symbols.exception.el1_sp1_synchronous_vector_long
+    br   x16
 
 _low_exception_handler:
     SAVE_REGS

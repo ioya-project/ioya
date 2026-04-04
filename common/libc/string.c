@@ -121,9 +121,9 @@ long strtol(const char *str, int base)
 
         if (*str >= '0' && *str <= '9') {
             digit = *str - '0';
-        } else if (*str > 'a' && *str <= 'f') {
+        } else if (*str >= 'a' && *str <= 'f') {
             digit = *str - 'a' + 10;
-        } else if (*str > 'A' && *str <= 'F') {
+        } else if (*str >= 'A' && *str <= 'F') {
             digit = *str - 'A' + 10;
         } else {
             break;

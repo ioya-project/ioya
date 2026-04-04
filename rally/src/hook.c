@@ -1,6 +1,5 @@
 #include <hook.h>
 #include <mem.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
