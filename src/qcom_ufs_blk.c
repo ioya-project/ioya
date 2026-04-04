@@ -35,12 +35,18 @@
 
 #define MASK_OCS 0xF
 
-#define UTP_DEVICE_TO_HOST (2 << 25)
-#define UTP_HOST_TO_DEVICE (1 << 25)
 #define UTP_CMD_TYPE_UFS (1 << 28)
 
 #define ALIGNED_UPIU_SIZE 512
 #define MAX_PRDT_ENTRIES 1
+
+#define WLUN_DEVICE 0xD0
+
+enum utp_dir {
+    UTP_NO_DATA = 0,
+    UTP_HOST_TO_DEVICE = 1,
+    UTP_DEVICE_TO_HOST = 2,
+};
 
 struct utp_transfer_req_desc {
     struct {
@@ -85,7 +91,8 @@ static int ufs_wait_doorbell_clear()
     return -1;
 }
 
-static int qcom_ufs_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t len, bool to_host)
+static int qcom_ufs_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t len,
+                             enum utp_dir dir, uint8_t lun)
 {
     memset(&utrd, 0, sizeof(utrd));
     memset(&ucd, 0, sizeof(ucd));
@@ -99,8 +106,22 @@ static int qcom_ufs_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t l
     uint8_t *upiu = ucd.command_upiu;
     memset(upiu, 0, ALIGNED_UPIU_SIZE);
 
+    uint8_t flags = 0;
+
+    switch (dir) {
+        case UTP_NO_DATA:
+            break;
+        case UTP_HOST_TO_DEVICE:
+            flags |= UPIU_CMD_FLAGS_WRITE;
+            break;
+        case UTP_DEVICE_TO_HOST:
+            flags |= UPIU_CMD_FLAGS_READ;
+            break;
+    }
+
     upiu[0] = 1; // COMMAND
-    upiu[1] = (to_host ? UPIU_CMD_FLAGS_READ : UPIU_CMD_FLAGS_WRITE);
+    upiu[1] = flags;
+    upiu[2] = lun;
 
     upiu[12] = (len >> 24) & 0xFF;
     upiu[13] = (len >> 16) & 0xFF;
@@ -109,7 +130,7 @@ static int qcom_ufs_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t l
 
     memcpy(&upiu[16], cdb, cdb_len);
 
-    utrd.header.dword_0 = (to_host ? UTP_DEVICE_TO_HOST : UTP_HOST_TO_DEVICE) | UTP_CMD_TYPE_UFS;
+    utrd.header.dword_0 = (dir << 25) | UTP_CMD_TYPE_UFS;
     utrd.header.dword_1 = 0;
     utrd.header.dword_2 = OCS_INVALID_COMMAND_STATUS;
     utrd.header.dword_3 = 0;
@@ -149,7 +170,7 @@ static int qcom_ufs_read(struct block_dev *dev, uint64_t lba, uint32_t count, vo
     cdb[7] = (count >> 8);
     cdb[8] = count;
 
-    return qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, len, true);
+    return qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, len, UTP_DEVICE_TO_HOST, 0);
 }
 
 static struct block_dev qcom_ufs_dev = {
@@ -177,13 +198,26 @@ void qcom_ufs_blk_init()
     uint8_t cdb[10] = {0};
     uint8_t buf[8] = {0};
 
+    cdb[0] = 0x1B;     // START STOP UNIT(10)
+    cdb[4] = (1 << 4); // ACTIVE
+    if (qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, sizeof(buf), UTP_DEVICE_TO_HOST, WLUN_DEVICE)) {
+        panic("Failed to wake up ufs");
+    }
+
+    memset(cdb, 0, sizeof(cdb));
+
     cdb[0] = 0x25; // READ CAPACITY(10)
-    if (qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, sizeof(buf), true)) {
+    if (qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, sizeof(buf), UTP_DEVICE_TO_HOST, 0)) {
         panic("Failed to read capacity of lun");
     }
 
     qcom_ufs_dev.block_count = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
     qcom_ufs_dev.block_size = (buf[4] << 24) | (buf[5] << 16) | (buf[6] << 8) | buf[7];
+
+    if (qcom_ufs_dev.block_size == 0 || qcom_ufs_dev.block_count == 0) {
+        panic("Invalid block size (%d) or block count(0x%x)\n", qcom_ufs_dev.block_size,
+              qcom_ufs_dev.block_count);
+    }
 
     block_dev_register(&qcom_ufs_dev);
 }
