@@ -22,7 +22,7 @@ OBJ := build/start.o \
 	build/nvram.o \
 	build/block_dev.o \
 	build/virtio_blk.o \
-	build/qcom_ufs_blk.o \
+	build/ufshc_blk.o \
 	build/gpt.o \
 	build/fat.o \
 	build/config_parser.o \

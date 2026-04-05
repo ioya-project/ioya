@@ -1,5 +1,5 @@
 #include <block_dev.h>
-#include <qcom_ufs_blk.h>
+#include <ufshc_blk.h>
 #include <virtio_blk.h>
 
 #define MAX_BLOCK_DEV 8
@@ -12,7 +12,7 @@ void block_dev_setup()
 #ifdef QEMU
     virtio_blk_init();
 #else
-    qcom_ufs_blk_init();
+    ufshc_blk_init();
 #endif
 }
 

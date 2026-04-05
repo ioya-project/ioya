@@ -1,13 +1,14 @@
-#include <qcom_ufs_blk.h>
+
+#include <config.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <ufshc_blk.h>
 #include <utils.h>
 
-#define UFS_HC_BASE (0x1D84000)
-
+#define UFS_HC_BASE (0x01D84000)
 #define UFS_HC_CONTROLLER_STATUS (UFS_HC_BASE + 0x30)
 
 #define UFS_HC_UTP_TRANSFER_REQ_LIST_BASE_L (UFS_HC_BASE + 0x50)
@@ -91,8 +92,8 @@ static int ufs_wait_doorbell_clear()
     return -1;
 }
 
-static int qcom_ufs_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t len,
-                             enum utp_dir dir, uint8_t lun)
+static int ufshc_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t len, enum utp_dir dir,
+                          uint8_t lun)
 {
     memset(&utrd, 0, sizeof(utrd));
     memset(&ucd, 0, sizeof(ucd));
@@ -155,7 +156,7 @@ static int qcom_ufs_scsi_cmd(uint8_t *cdb, size_t cdb_len, void *buf, uint32_t l
     return 0;
 }
 
-static int qcom_ufs_read(struct block_dev *dev, uint64_t lba, uint32_t count, void *buf)
+static int ufshc_read(struct block_dev *dev, uint64_t lba, uint32_t count, void *buf)
 {
     uint32_t len = count * dev->block_size;
     uint8_t cdb[10] = {0};
@@ -170,18 +171,18 @@ static int qcom_ufs_read(struct block_dev *dev, uint64_t lba, uint32_t count, vo
     cdb[7] = (count >> 8);
     cdb[8] = count;
 
-    return qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, len, UTP_DEVICE_TO_HOST, 0);
+    return ufshc_scsi_cmd(cdb, sizeof(cdb), buf, len, UTP_DEVICE_TO_HOST, 0);
 }
 
-static struct block_dev qcom_ufs_dev = {
-    .name = "qcom-ufs-blk",
+static struct block_dev ufshc_dev = {
+    .name = "ufshc-blk",
     .block_size = 0,
     .block_count = 0,
-    .read = qcom_ufs_read,
+    .read = ufshc_read,
     .priv = NULL,
 };
 
-void qcom_ufs_blk_init()
+void ufshc_blk_init()
 {
     write32(UFS_HC_UTP_TRANSFER_REQ_LIST_BASE_L, (uint32_t)(uintptr_t)&utrd);
     write32(UFS_HC_UTP_TRANSFER_REQ_LIST_BASE_H, (uint32_t)((uintptr_t)(&utrd) >> 32));
@@ -200,24 +201,24 @@ void qcom_ufs_blk_init()
 
     cdb[0] = 0x1B;     // START STOP UNIT(10)
     cdb[4] = (1 << 4); // ACTIVE
-    if (qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, sizeof(buf), UTP_DEVICE_TO_HOST, WLUN_DEVICE)) {
+    if (ufshc_scsi_cmd(cdb, sizeof(cdb), buf, sizeof(buf), UTP_DEVICE_TO_HOST, WLUN_DEVICE)) {
         panic("Failed to wake up ufs");
     }
 
     memset(cdb, 0, sizeof(cdb));
 
     cdb[0] = 0x25; // READ CAPACITY(10)
-    if (qcom_ufs_scsi_cmd(cdb, sizeof(cdb), buf, sizeof(buf), UTP_DEVICE_TO_HOST, 0)) {
+    if (ufshc_scsi_cmd(cdb, sizeof(cdb), buf, sizeof(buf), UTP_DEVICE_TO_HOST, 0)) {
         panic("Failed to read capacity of lun");
     }
 
-    qcom_ufs_dev.block_count = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
-    qcom_ufs_dev.block_size = (buf[4] << 24) | (buf[5] << 16) | (buf[6] << 8) | buf[7];
+    ufshc_dev.block_count = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+    ufshc_dev.block_size = (buf[4] << 24) | (buf[5] << 16) | (buf[6] << 8) | buf[7];
 
-    if (qcom_ufs_dev.block_size == 0 || qcom_ufs_dev.block_count == 0) {
-        panic("Invalid block size (%d) or block count(0x%x)\n", qcom_ufs_dev.block_size,
-              qcom_ufs_dev.block_count);
+    if (ufshc_dev.block_size == 0 || ufshc_dev.block_count == 0) {
+        panic("Invalid block size (%d) or block count(0x%x)\n", ufshc_dev.block_size,
+              ufshc_dev.block_count);
     }
 
-    block_dev_register(&qcom_ufs_dev);
+    block_dev_register(&ufshc_dev);
 }
