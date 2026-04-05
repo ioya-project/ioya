@@ -5,5 +5,8 @@
 #include <stdint.h>
 
 void fb_setup();
+uint64_t fb_get_base();
+uint32_t fb_get_width();
+uint32_t fb_get_height();
 
 #endif

@@ -5,6 +5,7 @@
 #include <config_parser.h>
 #include <fat.h>
 #include <fb.h>
+#include <fw_cfg.h>
 #include <gpt.h>
 #include <heap.h>
 #include <injector.h>
@@ -19,8 +20,8 @@
 #include <string.h>
 #include <utils.h>
 
-#define PA_TO_VA(x) ((x) - config.load_address + info.range.base)
-#define VA_TO_PA(x) ((x) - info.range.base + config.load_address)
+#define PA_TO_VA(x) ((x) - config.general.load_address + info.range.base)
+#define VA_TO_PA(x) ((x) - info.range.base + config.general.load_address)
 
 void populate_adt(struct adt_node *root, struct boot_config *config, uint64_t ramdisk_addr,
                   uint64_t ramdisk_size)
@@ -46,8 +47,8 @@ void populate_adt(struct adt_node *root, struct boot_config *config, uint64_t ra
         *(uint8_t *)(prop->data + i) = i;
     }
 
-    adt_set_prop_uint64(child, "dram-base", config->load_address);
-    adt_set_prop_uint64(child, "dram-size", config->memory_size);
+    adt_set_prop_uint64(child, "dram-base", config->general.load_address);
+    adt_set_prop_uint64(child, "dram-size", config->general.memory_size);
     adt_set_prop_string(child, "firmware-version", "IOYA");
 
     uint32_t nvram_size = 0;
@@ -201,7 +202,7 @@ void main(uintptr_t base, void *payload, size_t payload_size)
     printf("Built with Clang %s\n", __clang_version__);
 
     uint32_t kernel_len;
-    ret = read_file(&fs, config.kernel, NULL, &kernel_len);
+    ret = read_file(&fs, config.general.kernel, NULL, &kernel_len);
     if (ret < 0) {
         panic("Failed to get kernel file size: %d\n", ret);
     }
@@ -211,7 +212,7 @@ void main(uintptr_t base, void *payload, size_t payload_size)
         panic("Failed to allocate memory for kernel\n");
     }
 
-    ret = read_file(&fs, config.kernel, kernel, NULL);
+    ret = read_file(&fs, config.general.kernel, kernel, NULL);
     if (ret < 0) {
         panic("Failed to read kernel file: %d\n", ret);
     }
@@ -219,9 +220,9 @@ void main(uintptr_t base, void *payload, size_t payload_size)
     uint32_t build_version = mach_o_get_build_version(kernel);
     void *rally_entry = mach_o_inject_rally(kernel, payload, payload_size);
 
-    struct mach_o_load_info info = mach_o_load_image(kernel, config.load_address);
+    struct mach_o_load_info info = mach_o_load_image(kernel, config.general.load_address);
     if (info.range.base > info.range.end) {
-        panic("No mach-o image at address 0x%08llx\n", config.load_address);
+        panic("No mach-o image at address 0x%08llx\n", config.general.load_address);
     }
 
     void *entry = VA_TO_PA(info.entry);
@@ -232,7 +233,7 @@ void main(uintptr_t base, void *payload, size_t payload_size)
 
     uint64_t ramdisk_addr = phys_ptr;
     uint64_t ramdisk_size = 0;
-    ret = read_file(&fs, config.ramdisk, (void *)ramdisk_addr, (uint32_t *)&ramdisk_size);
+    ret = read_file(&fs, config.general.ramdisk, (void *)ramdisk_addr, (uint32_t *)&ramdisk_size);
     if (ret < 0) {
         panic("Failed to get ramdisk file size: %d\n", ret);
     }
@@ -245,7 +246,7 @@ void main(uintptr_t base, void *payload, size_t payload_size)
     phys_ptr += 0x4000;
 
     uint32_t devicetree_size;
-    ret = read_file(&fs, config.devicetree, NULL, &devicetree_size);
+    ret = read_file(&fs, config.general.devicetree, NULL, &devicetree_size);
     if (ret < 0) {
         panic("Failed to get devicetree file size: %d\n", ret);
     }
@@ -255,7 +256,7 @@ void main(uintptr_t base, void *payload, size_t payload_size)
         panic("Failed to allocate memory for devicetree\n");
     }
 
-    ret = read_file(&fs, config.devicetree, devicetree, NULL);
+    ret = read_file(&fs, config.general.devicetree, devicetree, NULL);
     if (ret < 0) {
         panic("Failed to read devicetree file: %d\n", ret);
     }
@@ -281,16 +282,16 @@ void main(uintptr_t base, void *payload, size_t payload_size)
     args->revision = 2;
     args->version = 2;
     args->virt_base = info.range.base;
-    args->phys_base = config.load_address;
-    args->mem_size = config.memory_size;
+    args->phys_base = config.general.load_address;
+    args->mem_size = config.general.memory_size;
     args->kernel_top = phys_ptr;
-    strcpy(args->cmdline, config.cmdline);
+    strcpy(args->cmdline, config.general.cmdline);
 
-    args->video_args.base_addr = config.fb_base | 1;
+    args->video_args.base_addr = fb_get_base() | 1;
     args->video_args.display = false;
-    args->video_args.row_bytes = config.fb_width * sizeof(uint32_t);
-    args->video_args.width = config.fb_width;
-    args->video_args.height = config.fb_height;
+    args->video_args.row_bytes = fb_get_width() * sizeof(uint32_t);
+    args->video_args.width = fb_get_width();
+    args->video_args.height = fb_get_height();
     args->video_args.depth.depth = sizeof(uint32_t) * 8;
     args->video_args.depth.rotate = 0;
     args->video_args.depth.scale = 1;
@@ -302,7 +303,8 @@ void main(uintptr_t base, void *payload, size_t payload_size)
 
     printf("Jumping to RALLY payload\n");
     ((void (*)(uint64_t, uint64_t, uint64_t, struct boot_config))rally_entry)(
-        info.range.base, config.load_address, (uint64_t)rally_entry - config.load_address, config);
+        info.range.base, config.general.load_address,
+        (uint64_t)rally_entry - config.general.load_address, config);
 
     cache_disable();
     printf("Jumping to XNU Entry\n");

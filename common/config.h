@@ -6,17 +6,23 @@
 #define MAX_CONFIG_STRING 128
 
 struct boot_config {
-    char kernel[MAX_CONFIG_STRING];
-    char devicetree[MAX_CONFIG_STRING];
-    char ramdisk[MAX_CONFIG_STRING];
-    char cmdline[608];
-    uint64_t load_address;
-    uint64_t memory_size;
+    struct {
+        char kernel[MAX_CONFIG_STRING];
+        char devicetree[MAX_CONFIG_STRING];
+        char ramdisk[MAX_CONFIG_STRING];
+        char cmdline[608];
+        uint64_t load_address;
+        uint64_t memory_size;
+    } general;
 
-    uint64_t fb_base;
-    uint32_t fb_width;
-    uint32_t fb_height;
-    uint32_t fb_stride;
+#ifndef QEMU
+    struct {
+        uint64_t base;
+        uint32_t width;
+        uint32_t height;
+        uint32_t stride;
+    } fb;
+#endif
 };
 
 extern struct boot_config config;

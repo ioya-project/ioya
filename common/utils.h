@@ -12,6 +12,10 @@
 
 #define ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
 
+#define BE16(x) __builtin_bswap16(x)
+#define BE64(x) __builtin_bswap64(x)
+#define BE32(x) __builtin_bswap32(x)
+
 static inline void write64(uintptr_t addr, uint64_t val)
 {
     *(volatile uint64_t *)addr = val;

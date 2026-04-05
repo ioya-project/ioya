@@ -10,6 +10,12 @@ OBJ += build/common/libc/stdio.o \
 	build/common/reloc.o \
 	build/common/fb.o \
 
+QEMU ?= 0
+
+ifeq ($(QEMU), 1)
+OBJ += build/common/fw_cfg.o
+endif
+
 build/common/%.o: $(COMMON_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
